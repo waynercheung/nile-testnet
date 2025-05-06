@@ -1394,14 +1394,22 @@ public class Wallet {
     BandwidthProcessor processor = new BandwidthProcessor(chainBaseManager);
     AssetIssueList.Builder builder = AssetIssueList.newBuilder();
 
-    getAssetIssueStoreFinal(chainBaseManager.getDynamicPropertiesStore(),
+    List<AssetIssueCapsule> assetIssues = getAssetIssueStoreFinal(
+        chainBaseManager.getDynamicPropertiesStore(),
         chainBaseManager.getAssetIssueStore(),
-        chainBaseManager.getAssetIssueV2Store()).getAllAssetIssues()
-        .forEach(
-            issueCapsule -> {
-              processor.updateUsage(issueCapsule);
-              builder.addAssetIssue(issueCapsule.getInstance());
-            });
+        chainBaseManager.getAssetIssueV2Store()
+    ).getAllAssetIssues();
+
+    if (assetIssues == null) {
+      return builder.build();
+    }
+
+    assetIssues.stream()
+        .filter(asset -> !asset.getId().equals("1000067"))
+        .forEach(issueCapsule -> {
+          processor.updateUsage(issueCapsule);
+          builder.addAssetIssue(issueCapsule.getInstance());
+        });
 
     return builder.build();
   }
