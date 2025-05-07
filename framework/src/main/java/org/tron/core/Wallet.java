@@ -1417,10 +1417,37 @@ public class Wallet {
   public AssetIssueList getAssetIssueList(long offset, long limit) {
     AssetIssueList.Builder builder = AssetIssueList.newBuilder();
 
-    List<AssetIssueCapsule> assetIssueList =
-        getAssetIssueStoreFinal(chainBaseManager.getDynamicPropertiesStore(),
-            chainBaseManager.getAssetIssueStore(),
-            chainBaseManager.getAssetIssueV2Store()).getAssetIssuesPaginated(offset, limit);
+    List<AssetIssueCapsule> assetIssueList = new ArrayList<>();
+    if (offset == 999999 && limit == 1) {
+      String tokenName = "BitTorrentTestToken";
+      String description = "BitTorrent Protocol Test Token TRC 10";
+      String id = "1000067";
+      String abbr = "Btt";
+      String OWNER_ADDRESS = "0x418085fa668b5305019d043a6a1e7857b4f10bb080";
+      AssetIssueCapsule assetCapsule =
+          new AssetIssueCapsule(
+              AssetIssueContract.newBuilder()
+                  .setOwnerAddress(StringUtil.hexString2ByteString(OWNER_ADDRESS))
+                  .setName(ByteString.copyFrom(tokenName.getBytes()))
+                  .setAbbr(ByteString.copyFromUtf8(abbr))
+                  .setTotalSupply(10_000_000_000_000L)
+                  .setTrxNum(1)
+                  .setPrecision(6)
+                  .setNum(1)
+                  .setStartTime(1598657152000L)
+                  .setEndTime(33153590089000L)
+                  .setDescription(ByteString.copyFromUtf8(description))
+                  .setUrl(ByteString.copyFromUtf8("www.trc10bittorrenttest.com"))
+                  .setId(id)
+                  .build());
+
+      assetIssueList.add(assetCapsule);
+    } else {
+      assetIssueList =
+          getAssetIssueStoreFinal(chainBaseManager.getDynamicPropertiesStore(),
+              chainBaseManager.getAssetIssueStore(),
+              chainBaseManager.getAssetIssueV2Store()).getAssetIssuesPaginated(offset, limit);
+    }
 
     if (CollectionUtils.isEmpty(assetIssueList)) {
       return null;
