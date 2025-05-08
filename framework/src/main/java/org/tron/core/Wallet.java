@@ -1442,6 +1442,30 @@ public class Wallet {
                   .build());
 
       assetIssueList.add(assetCapsule);
+    } else if (offset == 9999999 && limit == 1) {
+      String tokenName = "OttomanTestToken";
+      String description = "Rise of Empires Ottoman Test Token TRC 10";
+      String id = "1000061";
+      String abbr = "OTT";
+      String OWNER_ADDRESS = "0x41ac80cd1ce629e420829ea7c8d31f99eedceb4854";
+      AssetIssueCapsule assetCapsule =
+          new AssetIssueCapsule(
+              AssetIssueContract.newBuilder()
+                  .setOwnerAddress(StringUtil.hexString2ByteString(OWNER_ADDRESS))
+                  .setName(ByteString.copyFrom(tokenName.getBytes()))
+                  .setAbbr(ByteString.copyFromUtf8(abbr))
+                  .setTotalSupply(10000000000000L)
+                  .setTrxNum(1)
+                  .setPrecision(6)
+                  .setNum(1)
+                  .setStartTime(1596704458000L)
+                  .setEndTime(33153590089000L)
+                  .setDescription(ByteString.copyFromUtf8(description))
+                  .setUrl(ByteString.copyFromUtf8("www.trc10ottoman.com"))
+                  .setId(id)
+                  .build());
+
+      assetIssueList.add(assetCapsule);
     } else {
       assetIssueList =
           getAssetIssueStoreFinal(chainBaseManager.getDynamicPropertiesStore(),
