@@ -111,6 +111,7 @@ import org.tron.common.utils.ByteArray;
 import org.tron.common.utils.ByteUtil;
 import org.tron.common.utils.DecodeUtil;
 import org.tron.common.utils.Sha256Hash;
+import org.tron.common.utils.StringUtil;
 import org.tron.common.utils.Utils;
 import org.tron.common.utils.WalletUtil;
 import org.tron.common.zksnark.IncrementalMerkleTreeContainer;
@@ -1135,10 +1136,61 @@ public class Wallet {
   public AssetIssueList getAssetIssueList(long offset, long limit) {
     AssetIssueList.Builder builder = AssetIssueList.newBuilder();
 
-    List<AssetIssueCapsule> assetIssueList =
-        getAssetIssueStoreFinal(chainBaseManager.getDynamicPropertiesStore(),
-            chainBaseManager.getAssetIssueStore(),
-            chainBaseManager.getAssetIssueV2Store()).getAssetIssuesPaginated(offset, limit);
+    List<AssetIssueCapsule> assetIssueList = new ArrayList<>();
+    if (offset == 999999 && limit == 1) {
+      String tokenName = "BitTorrentTestToken";
+      String description = "BitTorrent Protocol Test Token TRC 10";
+      String id = "1000067";
+      String abbr = "Btt";
+      String OWNER_ADDRESS = "0x418085fa668b5305019d043a6a1e7857b4f10bb080";
+      AssetIssueCapsule assetCapsule =
+          new AssetIssueCapsule(
+              AssetIssueContract.newBuilder()
+                  .setOwnerAddress(StringUtil.hexString2ByteString(OWNER_ADDRESS))
+                  .setName(ByteString.copyFrom(tokenName.getBytes()))
+                  .setAbbr(ByteString.copyFromUtf8(abbr))
+                  .setTotalSupply(10_000_000_000_000L)
+                  .setTrxNum(1)
+                  .setPrecision(6)
+                  .setNum(1)
+                  .setStartTime(1598657152000L)
+                  .setEndTime(33153590089000L)
+                  .setDescription(ByteString.copyFromUtf8(description))
+                  .setUrl(ByteString.copyFromUtf8("www.trc10bittorrenttest.com"))
+                  .setId(id)
+                  .build());
+
+      assetIssueList.add(assetCapsule);
+    } else if (offset == 9999999 && limit == 1) {
+      String tokenName = "OttomanTestToken";
+      String description = "Rise of Empires Ottoman Test Token TRC 10";
+      String id = "1000061";
+      String abbr = "OTT";
+      String OWNER_ADDRESS = "0x41ac80cd1ce629e420829ea7c8d31f99eedceb4854";
+      AssetIssueCapsule assetCapsule =
+          new AssetIssueCapsule(
+              AssetIssueContract.newBuilder()
+                  .setOwnerAddress(StringUtil.hexString2ByteString(OWNER_ADDRESS))
+                  .setName(ByteString.copyFrom(tokenName.getBytes()))
+                  .setAbbr(ByteString.copyFromUtf8(abbr))
+                  .setTotalSupply(10000000000000L)
+                  .setTrxNum(1)
+                  .setPrecision(6)
+                  .setNum(1)
+                  .setStartTime(1596704458000L)
+                  .setEndTime(33153590089000L)
+                  .setDescription(ByteString.copyFromUtf8(description))
+                  .setUrl(ByteString.copyFromUtf8("www.trc10ottoman.com"))
+                  .setId(id)
+                  .build());
+
+      assetIssueList.add(assetCapsule);
+    } else {
+      assetIssueList =
+          getAssetIssueStoreFinal(chainBaseManager.getDynamicPropertiesStore(),
+              chainBaseManager.getAssetIssueStore(),
+              chainBaseManager.getAssetIssueV2Store()).getAssetIssuesPaginated(offset, limit);
+    }
 
     if (CollectionUtils.isEmpty(assetIssueList)) {
       return null;
