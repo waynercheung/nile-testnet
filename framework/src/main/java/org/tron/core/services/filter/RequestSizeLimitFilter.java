@@ -34,7 +34,7 @@ public class RequestSizeLimitFilter implements Filter {
       HttpServletResponse httpResponse = (HttpServletResponse) response;
       httpResponse.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
       httpResponse.setContentType("application/json");
-      httpResponse.getWriter().write("{\"error\": \"Request entity too large\", \"maxSize\": " + maxRequestSize + "}");
+      httpResponse.getWriter().println("{\"error\": \"Request entity too large\", \"maxSize\": " + maxRequestSize + "}");
       return;
     }
 
