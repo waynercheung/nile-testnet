@@ -67,6 +67,9 @@ public abstract class HttpService extends AbstractService {
     context.setMaxFormContentSize(10 * 1024 * 1024); // 10 MB
     // 通过属性设置最大请求大小
     context.getServletContext().setAttribute("org.eclipse.jetty.server.Request.maxRequestSize", 10 * 1024 * 1024);
+
+    logger.info("MaxFormContentSize: {}", context.getMaxFormContentSize());
+    logger.info("MaxRequestSize: {}", context.getServletContext().getAttribute("org.eclipse.jetty.server.Request.maxRequestSize"));
     this.apiServer.setHandler(context);
     return context;
   }
