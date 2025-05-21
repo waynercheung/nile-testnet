@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.ConnectionLimit;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.util.Jetty;
 import org.tron.core.config.args.Args;
 
 @Slf4j(topic = "rpc")
@@ -58,6 +59,18 @@ public abstract class HttpService extends AbstractService {
     if (maxHttpConnectNumber > 0) {
       this.apiServer.addBean(new ConnectionLimit(maxHttpConnectNumber, this.apiServer));
     }
+
+    printJettyVersion();
+  }
+
+  public void printJettyVersion() {
+    // 方法 1: 使用 Jetty 类
+    String version = Jetty.VERSION;
+    logger.info("Jetty 版本: {}", version);
+
+    // 方法 2: 通过 Server 类
+    Server server = new Server();
+    logger.info("Jetty 服务器版本: {}", server.getClass().getPackage().getImplementationVersion());
   }
 
   protected ServletContextHandler initContextHandler() {
