@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.tron.common.application.HttpService;
 import org.tron.core.config.args.Args;
 import org.tron.core.services.filter.HttpInterceptor;
+import org.tron.core.services.filter.RequestSizeLimitFilter;
 
 @Component
 @Slf4j(topic = "API")
@@ -19,6 +20,8 @@ public class FullNodeJsonRpcHttpService extends HttpService {
 
   @Autowired
   private JsonRpcServlet jsonRpcServlet;
+  @Autowired
+  private RequestSizeLimitFilter requestSizeLimitFilter;
 
   public FullNodeJsonRpcHttpService() {
     port = Args.getInstance().getJsonRpcHttpFullNodePort();
@@ -39,5 +42,8 @@ public class FullNodeJsonRpcHttpService extends HttpService {
         .addFilterWithMapping(HttpInterceptor.class, "/*",
             EnumSet.of(DispatcherType.REQUEST));
     context.addFilter(fh, "/*", EnumSet.of(DispatcherType.REQUEST));
+
+    context.addFilter(new FilterHolder(requestSizeLimitFilter), "/*",
+        EnumSet.allOf(DispatcherType.class));
   }
 }
