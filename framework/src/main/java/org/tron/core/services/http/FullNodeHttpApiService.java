@@ -15,6 +15,7 @@ import org.tron.core.config.args.Args;
 import org.tron.core.services.filter.HttpApiAccessFilter;
 import org.tron.core.services.filter.HttpInterceptor;
 import org.tron.core.services.filter.LiteFnQueryHttpFilter;
+import org.tron.core.services.filter.RequestSizeLimitFilter;
 
 
 @Component("fullNodeHttpApiService")
@@ -263,6 +264,8 @@ public class FullNodeHttpApiService extends HttpService {
   private LiteFnQueryHttpFilter liteFnQueryHttpFilter;
   @Autowired
   private HttpApiAccessFilter httpApiAccessFilter;
+  @Autowired
+  private RequestSizeLimitFilter requestSizeLimitFilter;
   @Autowired
   private GetTransactionFromPendingServlet getTransactionFromPendingServlet;
   @Autowired
@@ -533,5 +536,9 @@ public class FullNodeHttpApiService extends HttpService {
         .addFilterWithMapping((Class<? extends Filter>) HttpInterceptor.class, "/*",
             EnumSet.of(DispatcherType.REQUEST));
     context.addFilter(fh, "/*", EnumSet.of(DispatcherType.REQUEST));
+
+    context.addFilter(new FilterHolder(requestSizeLimitFilter), "/*",
+        EnumSet.allOf(DispatcherType.class));
+
   }
 }

@@ -18,6 +18,7 @@ import org.tron.common.parameter.CommonParameter;
 @Slf4j(topic = "httpApiAccessFilter")
 public class HttpApiAccessFilter implements Filter {
 
+
   @Override
   public void init(FilterConfig filterConfig) {
   }
