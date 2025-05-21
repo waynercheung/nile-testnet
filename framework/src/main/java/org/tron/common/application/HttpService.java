@@ -63,6 +63,10 @@ public abstract class HttpService extends AbstractService {
   protected ServletContextHandler initContextHandler() {
     ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
     context.setContextPath(this.contextPath);
+    // 直接方法设置表单内容大小
+    context.setMaxFormContentSize(10 * 1024 * 1024); // 10 MB
+    // 通过属性设置最大请求大小
+    context.getServletContext().setAttribute("org.eclipse.jetty.server.Request.maxRequestSize", 10 * 1024 * 1024);
     this.apiServer.setHandler(context);
     return context;
   }
