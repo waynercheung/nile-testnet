@@ -18,10 +18,7 @@ package org.tron.common.application;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.ConnectionLimit;
-import org.eclipse.jetty.server.HttpConfiguration;
-import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.util.Jetty;
 import org.tron.core.config.args.Args;
@@ -57,22 +54,7 @@ public abstract class HttpService extends AbstractService {
   }
 
   protected void initServer() {
-    boolean enableSizeLimit = true;
-    if (enableSizeLimit) {
-      this.apiServer = new Server();
-
-      HttpConfiguration httpConfig = new HttpConfiguration();
-      HttpConnectionFactory httpFactory = new HttpConnectionFactory(httpConfig);
-      httpFactory.setInputBufferSize(10 * 1024 * 1024);
-
-      ServerConnector connector = new ServerConnector(this.apiServer, httpFactory);
-      connector.setPort(this.port);
-
-      this.apiServer.addConnector(connector);
-    } else {
-      this.apiServer = new Server(this.port);
-    }
-
+    this.apiServer = new Server(this.port);
     int maxHttpConnectNumber = Args.getInstance().getMaxHttpConnectNumber();
     if (maxHttpConnectNumber > 0) {
       this.apiServer.addBean(new ConnectionLimit(maxHttpConnectNumber, this.apiServer));
@@ -82,25 +64,21 @@ public abstract class HttpService extends AbstractService {
   }
 
   public void printJettyVersion() {
-    // 方法 1: 使用 Jetty 类
     String version = Jetty.VERSION;
     logger.info("Jetty 版本: {}", version);
-
-    // 方法 2: 通过 Server 类
-    Server server = new Server();
-    logger.info("Jetty 服务器版本: {}", server.getClass().getPackage().getImplementationVersion());
   }
 
   protected ServletContextHandler initContextHandler() {
     ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
     context.setContextPath(this.contextPath);
-    // 直接方法设置表单内容大小
-    context.setMaxFormContentSize(10 * 1024 * 1024); // 10 MB
-    // 通过属性设置最大请求大小
-    context.getServletContext().setAttribute("org.eclipse.jetty.server.Request.maxRequestSize", 10 * 1024 * 1024);
 
+    context.setMaxFormContentSize(10 * 1024 * 1024); // 10 MB
+    context.getServletContext()
+        .setAttribute("org.eclipse.jetty.server.Request.maxRequestSize", 10 * 1024 * 1024);
     logger.info("MaxFormContentSize: {}", context.getMaxFormContentSize());
-    logger.info("MaxRequestSize: {}", context.getServletContext().getAttribute("org.eclipse.jetty.server.Request.maxRequestSize"));
+    logger.info("MaxRequestSize: {}", context.getServletContext()
+        .getAttribute("org.eclipse.jetty.server.Request.maxRequestSize"));
+
     this.apiServer.setHandler(context);
     return context;
   }
