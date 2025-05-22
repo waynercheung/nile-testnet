@@ -18,7 +18,10 @@ package org.tron.common.application;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.ConnectionLimit;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.util.Jetty;
 import org.tron.core.config.args.Args;
@@ -54,13 +57,26 @@ public abstract class HttpService extends AbstractService {
   }
 
   protected void initServer() {
-    this.apiServer = new Server(this.port);
+    boolean enableSizeLimit = true;
+    if (enableSizeLimit) {
+      this.apiServer = new Server();
+
+      HttpConfiguration httpConfig = new HttpConfiguration();
+      HttpConnectionFactory httpFactory = new HttpConnectionFactory(httpConfig);
+      httpFactory.setInputBufferSize(10 * 1024 * 1024);
+
+      ServerConnector connector = new ServerConnector(this.apiServer, httpFactory);
+      connector.setPort(this.port);
+
+      this.apiServer.addConnector(connector);
+    } else {
+      this.apiServer = new Server(this.port);
+    }
+
     int maxHttpConnectNumber = Args.getInstance().getMaxHttpConnectNumber();
     if (maxHttpConnectNumber > 0) {
       this.apiServer.addBean(new ConnectionLimit(maxHttpConnectNumber, this.apiServer));
     }
-
-
 
     printJettyVersion();
   }
