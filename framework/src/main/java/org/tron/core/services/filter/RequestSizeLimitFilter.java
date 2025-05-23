@@ -257,12 +257,15 @@ public class RequestSizeLimitFilter implements Filter {
     private void checkSizeLimit(int aboutToRead) throws RequestTooLargeException {
       long currentSize = totalBytesRead.get();
       if (currentSize + aboutToRead > MAX_REQUEST_SIZE) {
+        logger.info("3 Request body size {} exceeds limit of " + MAX_REQUEST_SIZE + " bytes",
+            currentSize + aboutToRead, currentSize + aboutToRead);
         throw new RequestTooLargeException(
             "3 Request body size " + (currentSize + aboutToRead) + " exceeds limit of " + MAX_REQUEST_SIZE + " bytes",
             currentSize + aboutToRead);
       }
     }
 
+    // just for test
     private void logProgressIfNeeded(long currentSize) {
       if (currentSize - lastLoggedSize >= LOG_INTERVAL) {
         logger.debug("Large request in progress: {} MB read", currentSize / (1024 * 1024));
