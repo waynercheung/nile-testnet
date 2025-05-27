@@ -1,5 +1,7 @@
 package org.tron.core.services.jsonrpc;
 
+import static org.tron.core.services.filter.RequestSizeLimitFilter.MAX_REQUEST_SIZE;
+
 import com.googlecode.jsonrpc4j.HttpStatusCodeProvider;
 import com.googlecode.jsonrpc4j.JsonRpcInterceptor;
 import com.googlecode.jsonrpc4j.JsonRpcServer;
@@ -14,9 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.tron.common.parameter.CommonParameter;
-import org.tron.core.Wallet;
-import org.tron.core.db.Manager;
-import org.tron.core.services.NodeInfoService;
 import org.tron.core.services.http.RateLimiterServlet;
 
 @Component
@@ -57,6 +56,8 @@ public class JsonRpcServlet extends RateLimiterServlet {
     };
     rpcServer.setHttpStatusCodeProvider(httpStatusCodeProvider);
 
+    // rpcServer.setErrorResolver(tronJsonRpcErrorResolver);
+
     rpcServer.setShouldLogInvocationErrors(false);
     if (CommonParameter.getInstance().isMetricsPrometheusEnable()) {
       rpcServer.setInterceptorList(Collections.singletonList(interceptor));
@@ -65,6 +66,22 @@ public class JsonRpcServlet extends RateLimiterServlet {
 
   @Override
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-    rpcServer.handle(req, resp);
+    try {
+
+      rpcServer.handle(req, resp);
+    } catch (Exception e) {
+      logger.info("Exception is {}", e.getMessage());
+
+      resp.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+      resp.setContentType("application/json; charset=utf-8");
+      resp.setHeader("Connection", "close"); // 关闭连接以停止数据传输
+
+      String jsonResponse = String.format(
+          "{\"error\":\"Request too large\",\"message\":\"Request body too large\",\"maxSize\":%d,\"code\":413}",
+          MAX_REQUEST_SIZE);
+
+      resp.getWriter().write(jsonResponse);
+      resp.getWriter().flush();
+    }
   }
 }

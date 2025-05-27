@@ -520,6 +520,9 @@ public class FullNodeHttpApiService extends HttpService {
     context.addFilter(new FilterHolder(liteFnQueryHttpFilter), "/*",
         EnumSet.allOf(DispatcherType.class));
 
+    context.addFilter(new FilterHolder(requestSizeLimitFilter), "/*",
+        EnumSet.allOf(DispatcherType.class));
+
     // http access filter, it should have higher priority than HttpInterceptor
     context.addFilter(new FilterHolder(httpApiAccessFilter), "/*",
         EnumSet.allOf(DispatcherType.class));
@@ -536,9 +539,5 @@ public class FullNodeHttpApiService extends HttpService {
         .addFilterWithMapping((Class<? extends Filter>) HttpInterceptor.class, "/*",
             EnumSet.of(DispatcherType.REQUEST));
     context.addFilter(fh, "/*", EnumSet.of(DispatcherType.REQUEST));
-
-    context.addFilter(new FilterHolder(requestSizeLimitFilter), "/*",
-        EnumSet.allOf(DispatcherType.class));
-
   }
 }

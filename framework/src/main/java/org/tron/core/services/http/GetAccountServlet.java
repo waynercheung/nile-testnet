@@ -1,6 +1,7 @@
 package org.tron.core.services.http;
 
 import com.alibaba.fastjson.JSONObject;
+import com.google.common.base.Throwables;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,8 @@ public class GetAccountServlet extends RateLimiterServlet {
       JsonFormat.merge(params.getParams(), build, params.isVisible());
       fillResponse(params.isVisible(), build.build(), response);
     } catch (Exception e) {
+      e.printStackTrace();
+      logger.warn("stack trace: {}", Throwables.getStackTraceAsString(e));
       Util.processError(e, response);
     }
   }

@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 @Slf4j(topic = "API")
 public class RequestSizeLimitFilter implements Filter {
 
-  private static final long MAX_REQUEST_SIZE = 5 * 1024 * 1024L; // 10MB
+  public static final long MAX_REQUEST_SIZE = 5 * 1024 * 1024L; // 10MB
   private static final int BUFFER_SIZE = 8192; // 8KB buffer for efficient reading
   private static final long LOG_INTERVAL = 1024 * 1024L; // Log every 1MB for large requests
 
@@ -119,7 +119,7 @@ public class RequestSizeLimitFilter implements Filter {
   public void destroy() {
   }
 
-  private static class RequestTooLargeException extends IOException {
+  public static class RequestTooLargeException extends IOException {
     private final long actualSize;
 
     public RequestTooLargeException(String message, long actualSize) {
@@ -193,7 +193,11 @@ public class RequestSizeLimitFilter implements Filter {
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-      checkSizeLimit(len);
+      try {
+        checkSizeLimit(len);
+      } catch (Exception e) {
+        logger.info("Error is {}", e.getMessage());
+      }
 
       int bytesRead = originalStream.read(b, off, len);
       if (bytesRead == -1) {
