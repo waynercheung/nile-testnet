@@ -3,6 +3,7 @@ package org.tron.core.services.filter;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
@@ -22,8 +23,7 @@ import org.springframework.stereotype.Component;
 @Slf4j(topic = "API")
 public class RequestSizeLimitFilter implements Filter {
 
-  public static final long MAX_REQUEST_SIZE = 5 * 1024 * 1024L; // 10MB
-  private static final int BUFFER_SIZE = 8192; // 8KB buffer for efficient reading
+  public static final long MAX_REQUEST_SIZE = 5 * 1024 * 1024L; // 5MB
   private static final long LOG_INTERVAL = 1024 * 1024L; // Log every 1MB for large requests
 
   @Override
@@ -39,13 +39,14 @@ public class RequestSizeLimitFilter implements Filter {
     HttpServletRequest httpRequest = (HttpServletRequest) request;
     HttpServletResponse httpResponse = (HttpServletResponse) response;
 
-    // 只处理POST, PUT, PATCH等有请求体的方法
+    // TODO, disable PUT and PATCH methods if not needed
     if (!hasRequestBody(httpRequest.getMethod())) {
       chain.doFilter(request, response);
       return;
     }
 
     try {
+      // check Content-Length
       if (!preCheckContentLength(httpRequest, httpResponse)) {
         return;
       }
@@ -54,16 +55,15 @@ public class RequestSizeLimitFilter implements Filter {
       chain.doFilter(wrappedRequest, response);
 
     } catch (RequestTooLargeException e) {
-      logger.warn("Request body size exceeded limit: {} bytes", e.getActualSize());
+      logger.warn("Request body size exceeded limit: {} bytes (limit: {} bytes)",
+          e.getActualSize(), MAX_REQUEST_SIZE);
       sendErrorResponse(httpResponse, "Request body too large", e.getActualSize());
     } catch (IOException e) {
       logger.error("IO Error in RequestSizeLimitFilter: {}", e.getMessage());
       sendErrorResponse(httpResponse, "Request processing failed", 0);
     } catch (Exception e) {
-      logger.error("Error in RequestSizeLimitFilter: {}", e.getMessage(), e);
-      if (!httpResponse.isCommitted()) {
-        sendErrorResponse(httpResponse, "Request processing failed", 0);
-      }
+      logger.error("Unexpected error in RequestSizeLimitFilter", e);
+      sendErrorResponse(httpResponse, "Request processing failed", 0);
     }
   }
 
@@ -77,17 +77,22 @@ public class RequestSizeLimitFilter implements Filter {
       throws IOException {
 
     String contentLengthHeader = request.getHeader("Content-Length");
-    if (contentLengthHeader != null) {
+    if (contentLengthHeader != null && !contentLengthHeader.trim().isEmpty()) {
       try {
-        long contentLength = Long.parseLong(contentLengthHeader);
+        long contentLength = Long.parseLong(contentLengthHeader.trim());
         if (contentLength > MAX_REQUEST_SIZE) {
-          logger.warn("Request rejected by Content-Length: {} bytes (limit: {} bytes) ",
+          logger.warn("Request rejected by Content-Length header: {} bytes (limit: {} bytes)",
               contentLength, MAX_REQUEST_SIZE);
           sendErrorResponse(response, "Request Content-Length exceeds limit", contentLength);
           return false;
         }
+        if (contentLength < 0) {
+          logger.warn("Invalid negative Content-Length: {}", contentLength);
+          sendErrorResponse(response, "Invalid Content-Length header", 0);
+          return false;
+        }
       } catch (NumberFormatException e) {
-        logger.warn("Invalid Content-Length header: {} ", contentLengthHeader);
+        logger.warn("Invalid Content-Length header format: '{}'", contentLengthHeader);
         sendErrorResponse(response, "Invalid Content-Length header", 0);
         return false;
       }
@@ -99,20 +104,31 @@ public class RequestSizeLimitFilter implements Filter {
       throws IOException {
 
     if (response.isCommitted()) {
-      logger.warn("Cannot send error response - response already committed");
+      logger.debug("Cannot send error response - response already committed");
       return;
     }
 
     response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
-    response.setContentType("application/json; charset=utf-8");
-    response.setHeader("Connection", "close"); // 关闭连接以停止数据传输
+    response.setContentType("application/json; charset=UTF-8");
+    response.setHeader("Connection", "close");
 
     String jsonResponse = String.format(
         "{\"error\":\"Request too large\",\"message\":\"%s\",\"maxSize\":%d,\"actualSize\":%d,\"code\":413}",
-        message, MAX_REQUEST_SIZE, actualSize);
+        escapeJson(message), MAX_REQUEST_SIZE, actualSize);
 
     response.getWriter().write(jsonResponse);
     response.getWriter().flush();
+  }
+
+  private String escapeJson(String input) {
+    if (input == null) {
+      return "";
+    }
+    return input.replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t");
   }
 
   @Override
@@ -120,6 +136,7 @@ public class RequestSizeLimitFilter implements Filter {
   }
 
   public static class RequestTooLargeException extends IOException {
+
     private final long actualSize;
 
     public RequestTooLargeException(String message, long actualSize) {
@@ -133,8 +150,9 @@ public class RequestSizeLimitFilter implements Filter {
   }
 
   private static class SizeLimitedRequestWrapper extends HttpServletRequestWrapper {
-    private SizeLimitedInputStream sizeLimitedInputStream;
-    private BufferedReader bufferedReader;
+
+    private volatile SizeLimitedInputStream sizeLimitedInputStream;
+    private volatile BufferedReader bufferedReader;
 
     public SizeLimitedRequestWrapper(HttpServletRequest request) {
       super(request);
@@ -143,8 +161,12 @@ public class RequestSizeLimitFilter implements Filter {
     @Override
     public ServletInputStream getInputStream() throws IOException {
       if (sizeLimitedInputStream == null) {
-        ServletInputStream originalStream = super.getInputStream();
-        sizeLimitedInputStream = new SizeLimitedInputStream(originalStream);
+        synchronized (this) {
+          if (sizeLimitedInputStream == null) {
+            ServletInputStream originalStream = super.getInputStream();
+            sizeLimitedInputStream = new SizeLimitedInputStream(originalStream);
+          }
+        }
       }
       return sizeLimitedInputStream;
     }
@@ -152,21 +174,29 @@ public class RequestSizeLimitFilter implements Filter {
     @Override
     public BufferedReader getReader() throws IOException {
       if (bufferedReader == null) {
-        String encoding = getCharacterEncoding();
-        if (encoding == null) {
-          encoding = "UTF-8";
+        synchronized (this) {
+          if (bufferedReader == null) {
+            String encoding = getCharacterEncoding();
+            if (encoding == null || encoding.trim().isEmpty()) {
+              encoding = "UTF-8";
+            }
+            bufferedReader = new BufferedReader(
+                new InputStreamReader(getInputStream(), encoding));
+          }
         }
-        bufferedReader = new BufferedReader(new InputStreamReader(getInputStream(), encoding));
       }
       return bufferedReader;
     }
   }
 
   private static class SizeLimitedInputStream extends ServletInputStream {
+
     private final ServletInputStream originalStream;
     private final AtomicLong totalBytesRead = new AtomicLong(0);
-    private boolean finished = false;
-    private long lastLoggedSize = 0;
+    private final AtomicBoolean limitExceeded = new AtomicBoolean(false);
+    private final AtomicBoolean errorLogged = new AtomicBoolean(false);
+    private volatile boolean finished = false;
+    private volatile long lastLoggedSize = 0;
 
     public SizeLimitedInputStream(ServletInputStream originalStream) {
       this.originalStream = originalStream;
@@ -174,15 +204,20 @@ public class RequestSizeLimitFilter implements Filter {
 
     @Override
     public int read() throws IOException {
-      checkSizeLimit(1);
+      if (limitExceeded.get()) {
+        throw createLimitExceededException();
+      }
 
       int data = originalStream.read();
       if (data == -1) {
         finished = true;
-      } else {
-        long currentSize = totalBytesRead.incrementAndGet();
-        logProgressIfNeeded(currentSize);
+        return -1;
       }
+
+      long newSize = totalBytesRead.incrementAndGet();
+      checkSizeLimit(newSize);
+      logProgressIfNeeded(newSize);
+
       return data;
     }
 
@@ -193,42 +228,65 @@ public class RequestSizeLimitFilter implements Filter {
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-      try {
-        checkSizeLimit(len);
-      } catch (Exception e) {
-        logger.info("Error is {}", e.getMessage());
+      if (b == null) {
+        throw new NullPointerException("Buffer cannot be null");
+      }
+      if (off < 0 || len < 0 || len > b.length - off) {
+        throw new IndexOutOfBoundsException("Invalid buffer parameters");
+      }
+      if (len == 0) {
+        return 0;
       }
 
-      int bytesRead = originalStream.read(b, off, len);
+      // already exceeded limit, throw exception
+      if (limitExceeded.get()) {
+        throw createLimitExceededException();
+      }
+
+      long currentSize = totalBytesRead.get();
+      long remainingBytes = MAX_REQUEST_SIZE - currentSize;
+      if (remainingBytes <= 0) {
+        limitExceeded.set(true);
+        throw createLimitExceededException();
+      }
+
+      int actualReadLength = (int) Math.min(len, remainingBytes);
+
+      int bytesRead = originalStream.read(b, off, actualReadLength);
       if (bytesRead == -1) {
         finished = true;
-      } else if (bytesRead > 0) {
-        long currentSize = totalBytesRead.addAndGet(bytesRead);
-
-        // 再次检查实际读取的字节数
-        if (currentSize > MAX_REQUEST_SIZE) {
-          throw new RequestTooLargeException(
-              "1 Request body size " + currentSize + " exceeds limit of " + MAX_REQUEST_SIZE + " bytes",
-              currentSize);
-        }
-
-        logProgressIfNeeded(currentSize);
+        return -1;
       }
+
+      if (bytesRead > 0) {
+        long newSize = totalBytesRead.addAndGet(bytesRead);
+        checkSizeLimit(newSize);
+        logProgressIfNeeded(newSize);
+      }
+
       return bytesRead;
     }
 
     @Override
     public long skip(long n) throws IOException {
+      if (n <= 0) {
+        return 0;
+      }
+
+      if (limitExceeded.get()) {
+        throw createLimitExceededException();
+      }
+
       long currentSize = totalBytesRead.get();
       if (currentSize + n > MAX_REQUEST_SIZE) {
-        throw new RequestTooLargeException(
-            "2 Request body size would exceed limit after skipping " + n + " bytes",
-            currentSize + n);
+        limitExceeded.set(true);
+        throw createLimitExceededException();
       }
 
       long skipped = originalStream.skip(n);
       if (skipped > 0) {
-        totalBytesRead.addAndGet(skipped);
+        long newSize = totalBytesRead.addAndGet(skipped);
+        logProgressIfNeeded(newSize);
       }
       return skipped;
     }
@@ -240,17 +298,21 @@ public class RequestSizeLimitFilter implements Filter {
 
     @Override
     public void close() throws IOException {
-      originalStream.close();
+      try {
+        originalStream.close();
+      } finally {
+        finished = true;
+      }
     }
 
     @Override
     public boolean isFinished() {
-      return finished || originalStream.isFinished();
+      return finished && originalStream.isFinished();
     }
 
     @Override
     public boolean isReady() {
-      return originalStream.isReady();
+      return !limitExceeded.get() && originalStream.isReady();
     }
 
     @Override
@@ -258,21 +320,21 @@ public class RequestSizeLimitFilter implements Filter {
       originalStream.setReadListener(readListener);
     }
 
-    private void checkSizeLimit(int aboutToRead) throws RequestTooLargeException {
-      long currentSize = totalBytesRead.get();
-      if (currentSize + aboutToRead > MAX_REQUEST_SIZE) {
-        logger.info("3 Request body size {} exceeds limit of " + MAX_REQUEST_SIZE + " bytes",
-            currentSize + aboutToRead, currentSize + aboutToRead);
-        throw new RequestTooLargeException(
-            "3 Request body size " + (currentSize + aboutToRead) + " exceeds limit of " + MAX_REQUEST_SIZE + " bytes",
-            currentSize + aboutToRead);
+    private void checkSizeLimit(long currentSize) throws RequestTooLargeException {
+      if (currentSize > MAX_REQUEST_SIZE && limitExceeded.compareAndSet(false, true)) {
+        throw createLimitExceededException();
       }
     }
 
-    // just for test
+    private RequestTooLargeException createLimitExceededException() {
+      return new RequestTooLargeException(
+          "Request body size exceeds limit of " + MAX_REQUEST_SIZE + " bytes",
+          totalBytesRead.get());
+    }
+
     private void logProgressIfNeeded(long currentSize) {
-      if (currentSize - lastLoggedSize >= LOG_INTERVAL) {
-        logger.debug("Large request in progress: {} MB read", currentSize / (1024 * 1024));
+      if (logger.isDebugEnabled() && currentSize - lastLoggedSize >= LOG_INTERVAL) {
+        logger.debug("Large request reading progress: {} MB", currentSize / (1024 * 1024));
         lastLoggedSize = currentSize;
       }
     }
