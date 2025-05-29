@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
 @Slf4j(topic = "API")
 public class RequestSizeLimitFilter implements Filter {
 
-  public static final long MAX_REQUEST_SIZE = 5 * 1024 * 1024L; // 5MB
+  public static final int MAX_REQUEST_SIZE = 5 * 1024 * 1024; // 5MB
   private static final long LOG_INTERVAL = 1024 * 1024L; // Log every 1MB for large requests
 
   @Override

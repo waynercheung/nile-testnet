@@ -1,7 +1,5 @@
 package org.tron.core.services.jsonrpc;
 
-import static org.tron.core.services.filter.RequestSizeLimitFilter.MAX_REQUEST_SIZE;
-
 import com.googlecode.jsonrpc4j.HttpStatusCodeProvider;
 import com.googlecode.jsonrpc4j.JsonRpcInterceptor;
 import com.googlecode.jsonrpc4j.JsonRpcServer;
@@ -66,22 +64,6 @@ public class JsonRpcServlet extends RateLimiterServlet {
 
   @Override
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-    try {
-
-      rpcServer.handle(req, resp);
-    } catch (Exception e) {
-      logger.info("Exception is {}", e.getMessage());
-
-      resp.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
-      resp.setContentType("application/json; charset=utf-8");
-      resp.setHeader("Connection", "close"); // 关闭连接以停止数据传输
-
-      String jsonResponse = String.format(
-          "{\"error\":\"Request too large\",\"message\":\"Request body too large\",\"maxSize\":%d,\"code\":413}",
-          MAX_REQUEST_SIZE);
-
-      resp.getWriter().write(jsonResponse);
-      resp.getWriter().flush();
-    }
+    rpcServer.handle(req, resp);
   }
 }
